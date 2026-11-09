@@ -34,9 +34,40 @@ def test_search_reports_not_found():
     assert "見つかりませんでした" in tools.search_glossary("存在しない用語xyz")
 
 
+def test_search_multiple_returns_results_for_each_query():
+    results = json.loads(tools.search_glossary_multiple(["LoRA", "QLoRA", "存在しない用語xyz"]))
+
+    assert [result["query"] for result in results] == ["LoRA", "QLoRA", "存在しない用語xyz"]
+    assert results[0]["results"][0]["term"] == "LoRA"
+    assert results[1]["results"][0]["term"] == "QLoRA"
+    assert "見つかりませんでした" in results[2]["message"]
+
+
+def test_search_multiple_reports_empty_queries():
+    assert "1つ以上" in tools.search_glossary_multiple([])
+
+
 def test_lecture_summary():
     assert "エージェント" in tools.get_lecture_summary(3)
     assert "まだありません" in tools.get_lecture_summary(99)
+
+
+def test_make_quiz_returns_question_and_answer_for_lecture(monkeypatch):
+    terms = [term for term in tools.load_glossary() if term["lecture"] == 2]
+    selected = terms[0]
+    monkeypatch.setattr(tools.random, "choice", lambda choices: choices[0])
+
+    quiz = json.loads(tools.make_quiz(2))
+
+    assert quiz == {
+        "lecture": 2,
+        "question": f"次の説明に当てはまる用語は何ですか？\n{selected['definition']}",
+        "answer": selected["term"],
+    }
+
+
+def test_make_quiz_reports_when_lecture_has_no_terms():
+    assert tools.make_quiz(99) == "第99回の用語が見つかりませんでした。"
 
 
 def test_default_question_of_lecture1_is_answerable_from_glossary():

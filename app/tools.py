@@ -5,6 +5,7 @@
 """
 
 import json
+import random
 from functools import cache
 from pathlib import Path
 
@@ -32,7 +33,7 @@ def search_glossary(query: str) -> str:
     """講座の用語集から用語を検索し、定義と、どの回で扱うかを返す。
 
     AIエンジニアリングの用語や、この講座（AIE2026）に固有の言葉について
-    答える前に使うこと。query には調べたい用語を1つだけ入れる（例: "LoRA"）。
+    答える前に使うこと。query には調べたい用語をまとめて入れる（例: "LoRA, QLoRA"）。
     """
     q = _normalize(query)
     if not q:
@@ -67,6 +68,27 @@ def search_glossary(query: str) -> str:
     )
 
 
+def search_glossary_multiple(queries: list[str]) -> str:
+    """講座の用語集から複数の用語を検索し、それぞれの定義と扱う回を返す。
+
+    複数の用語をまとめて調べたいときに使う。queries には用語を複数指定する
+    （例: ["LoRA", "QLoRA"]）。結果は入力した用語ごとに返す。
+    """
+    if not queries:
+        return "検索語が空です。調べたい用語を1つ以上指定してください。"
+
+    results = []
+    for query in queries:
+        result = search_glossary(query)
+        try:
+            matches = json.loads(result)
+        except json.JSONDecodeError:
+            results.append({"query": query, "message": result})
+        else:
+            results.append({"query": query, "results": matches})
+    return json.dumps(results, ensure_ascii=False)
+
+
 def get_lecture_summary(lecture: int) -> str:
     """指定した回（1始まりの整数）の講義の要点を返す。
 
@@ -77,3 +99,29 @@ def get_lecture_summary(lecture: int) -> str:
         available = sorted(p.stem for p in (DATA_DIR / "lectures").glob("*.md"))
         return f"第{lecture}回の要点はまだありません。用意されている回: {', '.join(available)}"
     return path.read_text(encoding="utf-8")
+
+
+def make_quiz(lecture: int) -> str:
+    """指定した回の用語から 1つを選び、
+        確認問題と答えを返す。
+
+        「第2回の確認問題を出して」のように、
+        復習用の問題を求められたときに使う。
+    """
+    # 1. load_glossary() から lecture が一致する用語を集める
+    terms = [entry for entry in load_glossary() if entry["lecture"] == lecture]
+    if not terms:
+        return f"第{lecture}回の用語が見つかりませんでした。"
+
+    # 2. 1 つ選ぶ（random.choice ）
+    term = random.choice(terms)
+
+    # 3. 問題と答えを文字列で返す（ json.dumps など）
+    return json.dumps(
+        {
+            "lecture": lecture,
+            "question": f"次の説明に当てはまる用語は何ですか？\n{term['definition']}",
+            "answer": term["term"],
+        },
+        ensure_ascii=False,
+    )
