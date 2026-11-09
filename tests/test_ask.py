@@ -5,9 +5,10 @@ from app import ask as ask_module
 
 def _mock_generation(monkeypatch, response):
     class FakeModels:
-        def generate_content(self, *, model, contents):
+        def generate_content(self, *, model, contents, config):
             assert model == ask_module.MODEL
             assert contents == "質問"
+            assert config.temperature == 1.0
             return response
 
     class FakeClient:
